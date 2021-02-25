@@ -1,13 +1,14 @@
-from typing import Any, Awaitable, Callable, Type, TypeVar, Union
+from __future__ import annotations
 
 import inspect
 import importlib
+from typing import Any, Awaitable, Callable, Dict, TypeVar, Union
+from types import new_class
 
 import discord
-from discord.ext.commands import converter, Context
+from discord.ext.commands import Context, converter
 
 from .converter import CustomConverter
-
 
 BASE_CONVERTERS = {
     # fmt: off
@@ -26,64 +27,67 @@ BASE_CONVERTERS = {
     # fmt: on
 }
 
-_CDT = TypeVar('_CDT', bound='ConverterDict')
+T = TypeVar("T")
+_CDT = TypeVar("_CDT", bound="ConverterDict")
 
 
 if discord.version_info >= (1, 7, 0):
-    BASE_CONVERTERS.update({
-        # fmt: off
-        discord.Guild:           converter.GuildConverter,
-        discord.PartialMessage:  converter.PartialMessageConverter,
-        # fmt: on
-    })
-    
 
-class ConverterDict(dict):
+    BASE_CONVERTERS.update(
+        {
+            # fmt: off
+            discord.Guild:           converter.GuildConverter,
+            discord.PartialMessage:  converter.PartialMessageConverter,
+            # fmt: on
+        }
+    )
+
+
+class ConverterDict(Dict[type, Union[converter.Converter, Callable[[str], Any]]]):
     def __init__(self):
         super().__init__(BASE_CONVERTERS)
 
-    def __setitem__(self, k: Any, v: Any):
-        if not (issubclass(v, converter.Converter) or callable(v)):
-            raise TypeError("Excepted value of type 'Converter' or built-in, received {}".format(v.__name__))
-        super().__setitem__(k, v)
+    def __setitem__(self, key: type, value: Any) -> None:
+        if not (callable(value) or issubclass(value, converter.Converter)):
+            raise TypeError(f"Excepted value of type 'Converter' or built-in, received {value.__name__}")
+        super().__setitem__(key, value)
 
-    def set(self: _CDT, _type: Any, converter: str) -> _CDT:
-        self.__setitem__(_type, converter)
+    def set(self: _CDT, type_: type, converter: Union[converter.Converter, Callable[[str], Any]]) -> _CDT:
+        self[type_] = converter
         return self
 
     def get(self, _type: Any, default: Any = None) -> Any:
         if inspect.isclass(_type):
             return super().get(_type, default)
-        else:
-            _converter = super().get(type(_type), default)
 
-            if issubclass(_converter, CustomConverter):
-                _converter = _converter[_type]
-            
-            return _converter
+        _converter = super().get(type(_type), default)
 
-    def register(self, _type: type) -> converter.Converter:
-        def predicate(handler: Union[Callable[[Context, str], Awaitable[Any]], converter.Converter]):
-            # _type is what is should convert to.
+        if issubclass(_converter, CustomConverter):
+            _converter = _converter[_type]
 
-            _converter = handler
+        return _converter
 
-            if inspect.iscoroutinefunction(handler):
-                _converter = type(
-                        '{}Converter'.format(_type.__name__),
-                        (converter.Converter,),
-                        {
-                            'convert': lambda s, c, a: handler(c, a) # should mean it's a coroutine.
-                        }
-                    )
+    def register(self, type: T) -> CustomConverter[T]:
+        def predicate(
+            converter: Union[Callable[[Context, str], Awaitable[T]], CustomConverter[T]]
+        ) -> CustomConverter[T]:
+            if inspect.iscoroutinefunction(converter):
+                converter = new_class(
+                    f"{type.__name__}Converter",
+                    (CustomConverter[type],),
+                    exec_body=lambda ns: ns.__setitem__("convert", lambda s, c, a: handler(c, a)),  # should mean it's a coroutine function.
+                )
 
-                self.set(_type, _converter)
-            else:
-                self.set(_type, _converter)
+            self.set(type, converter)
 
-            return _converter
+            return converter
+
         return predicate
 
-    def load(self, *_converters: str) -> None:
-        for c in _converters:
-            importlib.import_module('discord.ext.converters.custom_converters.{}'.format(c)).setup(self)
+    def load(self, *converters: str) -> None:
+        for c in converters:
+            c = {"uuid": "uuid_", "zoneinfo": "zoneinfo_"}.get(c, c)
+            importlib.import_module(f".custom_converters.{c}", package=__package__)
+
+
+CONVERTERS = ConverterDict()

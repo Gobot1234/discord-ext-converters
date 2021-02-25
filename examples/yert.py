@@ -1,11 +1,10 @@
 from discord.ext.converters import ConvertersBot
 
-
-bot = ConvertersBot(command_prefix='!')
+bot = ConvertersBot(command_prefix="!")
 
 
 class Yert:
-    yert = 'yert'
+    yert = "yert"
 
 
 @bot.converters.register(Yert)
@@ -18,4 +17,4 @@ async def yert(ctx, yert: Yert):
     await ctx.send(yert.yert)
 
 
-bot.run('token')
+bot.run("token")

@@ -13,16 +13,24 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 """
-from .custom_converters import CONVERTERS
-from .mixins import ConvertersMixin
 
-from collections import namedtuple
+from typing import NamedTuple
 
+from typing_extensions import Literal
+
+from .bot import AutoShardedConvertersBot, ConvertersBot
 from .core import *
 from .model import ConverterDict
-from .bot import ConvertersBot, AutoShardedConvertersBot
 
 __version__ = "0.1.0a"
 
-_VersionInfo = namedtuple("_VersionInfo", "major minor micro releaselevel serial")
+
+class _VersionInfo(NamedTuple):
+    major: int
+    minor: int
+    micro: int
+    releaselevel: Literal["alpha", "beta", "candidate", "final"]
+    serial: int
+
+
 version_info = _VersionInfo(major=0, minor=1, micro=0, releaselevel="alpha", serial=0)

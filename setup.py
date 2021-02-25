@@ -1,5 +1,6 @@
-from setuptools import setup
 import re
+
+from setuptools import setup
 
 with open("requirements.txt") as f:
     requirements = f.read().splitlines()
@@ -41,5 +42,5 @@ setup(
         "Topic :: Software Development :: Libraries",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities",
-    ]
+    ],
 )
